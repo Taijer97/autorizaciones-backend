@@ -1,0 +1,4 @@
+.env
+venv/
+uploads/
+uploads.env/
