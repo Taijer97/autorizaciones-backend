@@ -137,6 +137,7 @@ async def check_dni_documents(
         has_respaldo = bool(auth.autorizacion_respaldo)
         has_declaracion = bool(auth.declaracion_jurada)
         has_dni = bool(auth.copia_dni)
+        has_evidencias = bool(auth.evidencias)
         
         status_text = "Completo"
         severity = "success"
@@ -155,6 +156,8 @@ async def check_dni_documents(
             missing_docs.append("Declaración Jurada")
         if not has_dni:
             missing_docs.append("Copia DNI")
+        if not has_evidencias:
+            missing_docs.append("Evidencias")
             
         if has_principal and len(missing_docs) > 0:
             status_text = "Faltan documentos secundarios"
@@ -171,14 +174,16 @@ async def check_dni_documents(
                 "duplicado": auth.autorizacion_duplicado,
                 "respaldo": auth.autorizacion_respaldo,
                 "declaracion": auth.declaracion_jurada,
-                "copia_dni": auth.copia_dni
+                "copia_dni": auth.copia_dni,
+                "evidencias": auth.evidencias
             },
             "apellidos_nombres": auth.apellidos_nombres,
             "inicio_descuento": f"{auth.inicio_descuento_mes:02d}/{auth.inicio_descuento_anio}",
             "termino_descuento": f"{auth.termino_descuento_mes:02d}/{auth.termino_descuento_anio}",
             "monto_mensual": float(auth.monto_mensual),
             "monto_total": float(auth.monto_total),
-            "num_cuotas": auth.num_cuotas
+            "num_cuotas": auth.num_cuotas,
+            "observaciones": auth.observaciones
         })
         
     return {
@@ -271,6 +276,7 @@ async def export_authorizations_zip(
                 if auth.autorizacion_respaldo: files_to_add["3_Respaldo"] = auth.autorizacion_respaldo
                 if auth.declaracion_jurada: files_to_add["4_Declaracion"] = auth.declaracion_jurada
                 if auth.copia_dni: files_to_add["5_DNI"] = auth.copia_dni
+                if auth.evidencias: files_to_add["6_Evidencias"] = auth.evidencias
             elif doc_type == 'principal' and auth.autorizacion_principal:
                 files_to_add["1_Principal"] = auth.autorizacion_principal
             elif doc_type == 'duplicado' and auth.autorizacion_duplicado:
@@ -281,6 +287,8 @@ async def export_authorizations_zip(
                 files_to_add["4_Declaracion"] = auth.declaracion_jurada
             elif doc_type == 'copia_dni' and auth.copia_dni:
                 files_to_add["5_DNI"] = auth.copia_dni
+            elif doc_type == 'evidencias' and auth.evidencias:
+                files_to_add["6_Evidencias"] = auth.evidencias
                 
             # Define friendly suffixes for labels when exporting all docs
             label_suffixes = {
@@ -288,7 +296,8 @@ async def export_authorizations_zip(
                 "2_Duplicado": "AUTORIZACION DUPLICADO",
                 "3_Respaldo": "AUTORIZACION RESPALDO",
                 "4_Declaracion": "DECLARACION JURADA",
-                "5_DNI": "COPIA DNI"
+                "5_DNI": "COPIA DNI",
+                "6_Evidencias": "EVIDENCIAS FOTO"
             }
 
             for label, relative_path in files_to_add.items():
@@ -354,11 +363,13 @@ async def create_authorization(
     inicio_descuento_anio: int = Form(...),
     num_cuotas: int = Form(...),
     monto_mensual: float = Form(...),
+    observaciones: Optional[str] = Form(None),
     file_principal: Optional[UploadFile] = File(None),
     file_duplicado: Optional[UploadFile] = File(None),
     file_respaldo: Optional[UploadFile] = File(None),
     file_declaracion: Optional[UploadFile] = File(None),
     file_dni: Optional[UploadFile] = File(None),
+    file_evidencias: Optional[UploadFile] = File(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(check_permission("create"))
 ):
@@ -395,7 +406,8 @@ async def create_authorization(
         monto_mensual=Decimal(str(monto_mensual)),
         monto_total=monto_total,
         created_by_id=current_user.id,
-        updated_by_id=current_user.id
+        updated_by_id=current_user.id,
+        observaciones=observaciones
     )
     db.add(db_auth)
     await db.commit()
@@ -416,6 +428,9 @@ async def create_authorization(
         updated = True
     if file_dni and file_dni.filename:
         db_auth.copia_dni = save_file(file_dni, db_auth.id, "dni")
+        updated = True
+    if file_evidencias and file_evidencias.filename:
+        db_auth.evidencias = save_file(file_evidencias, db_auth.id, "evidencias")
         updated = True
         
     if updated:
@@ -442,16 +457,19 @@ async def update_authorization(
     inicio_descuento_anio: Optional[int] = Form(None),
     num_cuotas: Optional[int] = Form(None),
     monto_mensual: Optional[float] = Form(None),
+    observaciones: Optional[str] = Form(None),
     file_principal: Optional[UploadFile] = File(None),
     file_duplicado: Optional[UploadFile] = File(None),
     file_respaldo: Optional[UploadFile] = File(None),
     file_declaracion: Optional[UploadFile] = File(None),
     file_dni: Optional[UploadFile] = File(None),
+    file_evidencias: Optional[UploadFile] = File(None),
     delete_principal: bool = Form(False),
     delete_duplicado: bool = Form(False),
     delete_respaldo: bool = Form(False),
     delete_declaracion: bool = Form(False),
     delete_dni: bool = Form(False),
+    delete_evidencias: bool = Form(False),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(check_permission("update"))
 ):
@@ -481,6 +499,8 @@ async def update_authorization(
         db_auth.dni = dni
     if apellidos_nombres is not None:
         db_auth.apellidos_nombres = apellidos_nombres
+    if observaciones is not None:
+        db_auth.observaciones = observaciones
     if sede_id is not None:
         stmt_sede = select(Sede).where(Sede.id == sede_id)
         sede_exists = (await db.execute(stmt_sede)).scalars().first()
@@ -525,6 +545,9 @@ async def update_authorization(
     if delete_dni and db_auth.copia_dni:
         delete_file_from_disk(db_auth.copia_dni)
         db_auth.copia_dni = None
+    if delete_evidencias and db_auth.evidencias:
+        delete_file_from_disk(db_auth.evidencias)
+        db_auth.evidencias = None
 
     # Handle file uploads
     if file_principal and file_principal.filename:
@@ -547,6 +570,10 @@ async def update_authorization(
         if db_auth.copia_dni:
             delete_file_from_disk(db_auth.copia_dni)
         db_auth.copia_dni = save_file(file_dni, db_auth.id, "dni")
+    if file_evidencias and file_evidencias.filename:
+        if db_auth.evidencias:
+            delete_file_from_disk(db_auth.evidencias)
+        db_auth.evidencias = save_file(file_evidencias, db_auth.id, "evidencias")
         
     db_auth.updated_by_id = current_user.id
     await db.commit()
@@ -591,6 +618,7 @@ async def delete_authorization(
     delete_file_from_disk(db_auth.autorizacion_respaldo)
     delete_file_from_disk(db_auth.declaracion_jurada)
     delete_file_from_disk(db_auth.copia_dni)
+    delete_file_from_disk(db_auth.evidencias)
     
     auth_dir = os.path.join(settings.UPLOAD_DIR, str(auth_id))
     if os.path.exists(auth_dir):
@@ -615,3 +643,41 @@ async def delete_authorization(
     })
     
     return None
+
+@router.post("/{auth_id}/clear-observation", response_model=AuthorizationResponse)
+async def clear_observation(
+    auth_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(check_permission("update"))
+):
+    stmt = select(Authorization).where(Authorization.id == auth_id)
+    result = await db.execute(stmt)
+    db_auth = result.scalars().first()
+    if not db_auth:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Autorización no encontrada"
+        )
+    
+    if current_user.role not in ["superadmin", "admin"]:
+        user_sede_ids = [s.id for s in current_user.sedes]
+        if db_auth.sede_id not in user_sede_ids:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="No tienes acceso a los registros de esta sede."
+            )
+            
+    db_auth.observaciones = None
+    db_auth.updated_by_id = current_user.id
+    await db.commit()
+    await db.refresh(db_auth)
+    
+    await manager.publish_event("AUTHORIZATION_UPDATED", {
+        "id": db_auth.id,
+        "dni": db_auth.dni,
+        "apellidos_nombres": db_auth.apellidos_nombres,
+        "sede": db_auth.sede,
+        "by": current_user.full_name
+    })
+    
+    return db_auth

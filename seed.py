@@ -172,6 +172,18 @@ async def seed():
                         print(f"Advertencia al agregar clave foránea fk_authorizations_updated_by: {e}")
                     await conn.execute(text("UPDATE authorizations SET updated_by_id = created_by_id;"))
                     print("Columna 'updated_by_id' añadida con éxito.")
+                    
+                # Check for observaciones and add it
+                if "observaciones" not in current_cols_now:
+                    print("Añadiendo columna 'observaciones' a la tabla 'authorizations'...")
+                    await conn.execute(text("ALTER TABLE authorizations ADD COLUMN observaciones VARCHAR(500) NULL;"))
+                    print("Columna 'observaciones' añadida con éxito.")
+                    
+                # Check for evidencias and add it
+                if "evidencias" not in current_cols_now:
+                    print("Añadiendo columna 'evidencias' a la tabla 'authorizations'...")
+                    await conn.execute(text("ALTER TABLE authorizations ADD COLUMN evidencias VARCHAR(255) NULL;"))
+                    print("Columna 'evidencias' añadida con éxito.")
         
         # 5. Fetch all sedes to assign to users
         sedes_res = await session.execute(select(Sede))

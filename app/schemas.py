@@ -98,6 +98,7 @@ class AuthorizationBase(BaseModel):
     inicio_descuento_anio: int = Field(..., ge=2000, description="Año de inicio del descuento")
     num_cuotas: int = Field(..., gt=0, description="Número de cuotas de descuento")
     monto_mensual: Decimal = Field(..., gt=0, description="Monto mensual a descontar")
+    observaciones: Optional[str] = Field(None, description="Observaciones sobre la autorización")
 
 class AuthorizationCreate(AuthorizationBase):
     pass
@@ -110,6 +111,7 @@ class AuthorizationUpdate(BaseModel):
     inicio_descuento_anio: Optional[int] = Field(None, ge=2000)
     num_cuotas: Optional[int] = Field(None, gt=0)
     monto_mensual: Optional[Decimal] = Field(None, gt=0)
+    observaciones: Optional[str] = None
 
 class AuthorizationResponse(AuthorizationBase):
     id: int
@@ -122,6 +124,7 @@ class AuthorizationResponse(AuthorizationBase):
     autorizacion_respaldo: Optional[str] = None
     declaracion_jurada: Optional[str] = None
     copia_dni: Optional[str] = None
+    evidencias: Optional[str] = None
     fecha_registro: datetime
     fecha_actualizacion: datetime
     created_by_id: int

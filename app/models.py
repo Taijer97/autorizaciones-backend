@@ -70,6 +70,8 @@ class Authorization(Base):
     autorizacion_respaldo = Column(String(255), nullable=True)
     declaracion_jurada = Column(String(255), nullable=True)
     copia_dni = Column(String(255), nullable=True)
+    observaciones = Column(String(500), nullable=True)
+    evidencias = Column(String(255), nullable=True)
     
     fecha_registro = Column(DateTime, default=func.now())
     fecha_actualizacion = Column(DateTime, default=func.now(), onupdate=func.now())
